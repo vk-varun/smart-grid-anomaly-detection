@@ -1,0 +1,49 @@
+mqtt:
+  host: localhost
+  port: 1883
+  keepalive: 60
+  qos: 1
+  topics:
+    meter_readings_prefix: "smartgrid/meters"
+    edge_processed_prefix: "smartgrid/edge"
+    fog_processed: "smartgrid/fog/processed"
+    anomalies: "smartgrid/anomalies"
+    metrics: "smartgrid/metrics"
+
+simulation:
+  num_meters: 50
+  sampling_interval_seconds: 1.0
+  duration_seconds: 120
+  anomaly_rate: 0.03
+  random_seed: 42
+  anomaly_types:
+    point_prob: 0.4
+    contextual_prob: 0.3
+    collective_prob: 0.3
+
+architecture:
+  edge_nodes: 3
+  meters_per_edge: 0  # 0 means auto-distribute meters evenly among edge nodes
+  edge_aggregation_window: 5  # aggregate normal readings every N intervals
+
+detection:
+  edge:
+    zscore_threshold: 3.0
+    rolling_window: 10
+    min_samples: 5
+    feature: "power_kw"
+  fog:
+    contamination: 0.03
+    window_size: 20
+    random_state: 42
+  cloud_baseline:
+    zscore_threshold: 3.0
+    rolling_window: 10
+    min_samples: 5
+
+database:
+  path: "data/database.db"
+
+logging:
+  level: "INFO"
+  format: "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"
