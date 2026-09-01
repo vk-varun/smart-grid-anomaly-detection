@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Grid Edge–Fog–Cloud Anomaly Detection</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="navbar">
+      <div class="nav-brand">
+        <div class="grid-icon">⚡</div>
+        <div>
+          <h1>Smart Grid Distributed Monitoring</h1>
+          <p class="subtitle">Edge–Fog–Cloud Anomaly Detection Architecture</p>
+        </div>
+      </div>
+      <div class="nav-status">
+        <div class="status-indicator">
+          <span class="pulse-dot"></span>
+          <span id="connection-status">Connecting to API...</span>
+        </div>
+        <button id="btn-refresh" class="btn btn-secondary">↻ Refresh</button>
+      </div>
+    </header>
+
+    <!-- Top KPI Cards -->
+    <section class="kpi-grid">
+      <div class="card kpi-card">
+        <div class="kpi-label">Total Readings</div>
+        <div class="kpi-val" id="kpi-readings">0</div>
+        <div class="kpi-sub">Ingested across all meters</div>
+      </div>
+      <div class="card kpi-card">
+        <div class="kpi-label">Anomalies Detected</div>
+        <div class="kpi-val alert-text" id="kpi-anomalies">0</div>
+        <div class="kpi-sub">Point, contextual & collective</div>
+      </div>
+      <div class="card kpi-card">
+        <div class="kpi-label">Mean Latency</div>
+        <div class="kpi-val" id="kpi-latency">0.0 <span class="unit">ms</span></div>
+        <div class="kpi-sub">Source to detection timestamp</div>
+      </div>
+      <div class="card kpi-card highlight-card">
+        <div class="kpi-label">WAN Bandwidth Reduction</div>
+        <div class="kpi-val success-text" id="kpi-bandwidth">0.0%</div>
+        <div class="kpi-sub">Saved vs. Cloud-Only Baseline</div>
+      </div>
+    </section>
+
+    <!-- Main Content Layout -->
+    <div class="main-grid">
+      <!-- Live Telemetry Panel -->
+      <div class="card panel">
+        <div class="panel-header">
+          <h2>📊 Live Smart Meter Telemetry</h2>
+          <span class="badge" id="telemetry-count">Recent 25</span>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Meter ID</th>
+                <th>Voltage (V)</th>
+                <th>Current (A)</th>
+                <th>Power (kW)</th>
+                <th>Freq (Hz)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="telemetry-tbody">
+              <tr><td colspan="7" class="placeholder-row">Loading readings...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Real-Time Anomaly Log -->
+      <div class="card panel">
+        <div class="panel-header">
+          <h2>🚨 Distributed Anomaly Event Log</h2>
+          <span class="badge badge-alert" id="anomaly-count">Live Alerts</span>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Meter</th>
+                <th>Layer</th>
+                <th>Type</th>
+                <th>Latency</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="anomaly-tbody">
+              <tr><td colspan="6" class="placeholder-row">No anomalies detected yet...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparative Architecture Evaluation Panel -->
+    <section class="card panel comparison-panel">
+      <div class="panel-header">
+        <h2>🔬 Architecture Comparison (Cloud-Only Baseline vs. Edge–Fog–Cloud)</h2>
+        <span class="badge badge-info">Latest Fair Benchmark</span>
+      </div>
+      <div class="comparison-grid">
+        <div class="table-container">
+          <table class="data-table comp-table">
+            <thead>
+              <tr>
+                <th>Evaluation Metric</th>
+                <th>Cloud-Only Baseline</th>
+                <th>Edge–Fog–Cloud (Proposed)</th>
+                <th>Difference / Gain</th>
+              </tr>
+            </thead>
+            <tbody id="comparison-tbody">
+              <tr><td colspan="4" class="placeholder-row">Run an experiment to populate comparison benchmark.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Smart Grid Edge–Fog–Cloud Anomaly Detection Dissertation Prototype | Local Research Demonstration</p>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
