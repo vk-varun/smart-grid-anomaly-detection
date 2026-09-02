@@ -1,4 +1,6 @@
 @echo off
+cd /d "%~dp0\.."
+set PYTHONPATH=.
 echo ====================================================
 echo Running Controlled Comparative Experiment
 echo (Cloud-Only Baseline vs. Edge-Fog-Cloud Distributed)
