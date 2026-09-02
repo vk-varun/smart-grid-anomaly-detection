@@ -44,10 +44,10 @@ class EdgeZScoreDetector:
             self.history[meter_id] = deque(maxlen=self.rolling_window_size)
 
         buf = self.history[meter_id]
-        buf.append(val)
 
         # Allow sufficient warmup samples before flagging
         if len(buf) < self.min_samples:
+            buf.append(val)
             return None
 
         n = len(buf)
@@ -55,10 +55,10 @@ class EdgeZScoreDetector:
         variance = sum((x - mean) ** 2 for x in buf) / (n - 1) if n > 1 else 0.0
         std = math.sqrt(variance)
 
-        if std < 1e-6:
-            return None
+        # Minimum floor to prevent division by zero or extreme sensitivity on identical readings
+        effective_std = max(std, 0.03 * abs(mean), 0.01)
 
-        z_score = abs(val - mean) / std
+        z_score = abs(val - mean) / effective_std
 
         # Fast threshold comparison
         is_anomalous = False
@@ -74,6 +74,10 @@ class EdgeZScoreDetector:
             is_anomalous = True
             anomaly_type = "point"
             confidence = 0.95
+
+        # Only append normal readings to rolling window to avoid contaminating baseline
+        if not is_anomalous:
+            buf.append(val)
 
         if is_anomalous:
             latency_ms = calculate_latency_ms(reading.timestamp)

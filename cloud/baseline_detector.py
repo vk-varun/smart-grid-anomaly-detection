@@ -28,14 +28,14 @@ class CloudBaselineDetector:
         self.history.clear()
 
     def _update_and_calculate_zscore(self, meter_id: str, value: float) -> Tuple[float, float, float]:
-        """Updates rolling window and calculates (z_score, mean, std)."""
+        """Calculates z-score against historical baseline window and updates buffer."""
         if meter_id not in self.history:
             self.history[meter_id] = deque(maxlen=self.rolling_window_size)
 
         buf = self.history[meter_id]
-        buf.append(value)
 
         if len(buf) < self.min_samples:
+            buf.append(value)
             return 0.0, value, 0.0
 
         n = len(buf)
@@ -43,11 +43,15 @@ class CloudBaselineDetector:
         variance = sum((x - mean) ** 2 for x in buf) / (n - 1) if n > 1 else 0.0
         std = math.sqrt(variance)
 
-        if std < 1e-6:
-            # Zero or near-zero variance
-            return 0.0, mean, std
+        # Minimum floor to prevent division by zero or extreme sensitivity on identical readings
+        effective_std = max(std, 0.03 * abs(mean), 0.01)
 
-        z_score = abs(value - mean) / std
+        z_score = abs(value - mean) / effective_std
+
+        # Only append normal readings to rolling window to avoid contaminating baseline
+        if z_score < self.zscore_threshold:
+            buf.append(value)
+
         return z_score, mean, std
 
     def process_reading(
