@@ -3,70 +3,321 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Grid Edge–Fog–Cloud Anomaly Detection</title>
+  <title>Smart Grid SCADA & EMS Command Center</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
-<body>
-  <div class="app-container">
-    <!-- Header -->
-    <header class="navbar">
-      <div class="nav-brand">
-        <div class="grid-icon">⚡</div>
-        <div>
-          <h1>Smart Grid Distributed Monitoring</h1>
-          <p class="subtitle">Edge–Fog–Cloud Anomaly Detection Architecture</p>
-        </div>
+<body class="scada-theme">
+  <!-- Top Command Bar -->
+  <header class="command-bar">
+    <div class="brand-zone">
+      <div class="scada-pulse-logo">
+        <span class="pulse-ring"></span>
+        <span class="pulse-core">⚡</span>
       </div>
-      <div class="nav-status">
-        <div class="status-indicator">
-          <span class="pulse-dot"></span>
-          <span id="connection-status">Connecting to API...</span>
+      <div>
+        <div class="brand-title">
+          <h1>SMART GRID SCADA & EMS COMMAND CENTER</h1>
+          <span class="scada-classification">SYSTEM LEVEL 4 | RESEARCH PROTOTYPE</span>
         </div>
-        <button id="btn-refresh" class="btn btn-secondary">↻ Refresh</button>
+        <div class="brand-sub">Edge–Fog–Cloud Hierarchical Anomaly Detection Architecture</div>
       </div>
-    </header>
+    </div>
 
-    <!-- Top KPI Cards -->
-    <section class="kpi-grid">
-      <div class="card kpi-card">
-        <div class="kpi-label">Total Readings</div>
-        <div class="kpi-val" id="kpi-readings">0</div>
-        <div class="kpi-sub">Ingested across all meters</div>
+    <!-- Live Clock and Operational Status Pill -->
+    <div class="system-status-zone">
+      <div class="scada-clock">
+        <span class="clock-label">SYS TIME (UTC):</span>
+        <span id="scada-time" class="clock-digits">00:00:00</span>
       </div>
-      <div class="card kpi-card">
-        <div class="kpi-label">Anomalies Detected</div>
-        <div class="kpi-val alert-text" id="kpi-anomalies">0</div>
-        <div class="kpi-sub">Point, contextual & collective</div>
+      <div id="grid-status-badge" class="grid-status-pill status-nominal">
+        <span class="status-radar-dot"></span>
+        <span id="grid-status-text">SYNCHRONIZED (NOMINAL)</span>
       </div>
-      <div class="card kpi-card">
-        <div class="kpi-label">Mean Latency</div>
-        <div class="kpi-val" id="kpi-latency">0.0 <span class="unit">ms</span></div>
-        <div class="kpi-sub">Source to detection timestamp</div>
+    </div>
+
+    <!-- Quick Control Buttons -->
+    <div class="command-actions">
+      <button id="btn-stream-toggle" class="btn btn-scada-primary" title="Start/Stop continuous telemetry stream">
+        <span class="btn-icon">▶</span> <span id="btn-stream-text">START LIVE STREAM</span>
+      </button>
+      
+      <div class="dropdown-group">
+        <button id="btn-inject-fault" class="btn btn-scada-warning" title="Simulate deliberate grid disturbance">
+          <span class="btn-icon">⚡</span> INJECT FAULT
+        </button>
+        <select id="fault-type-select" class="scada-select">
+          <option value="voltage_spike">Voltage Surge (+280V)</option>
+          <option value="voltage_sag">Brownout Sag (-175V)</option>
+          <option value="power_surge">Load Surge (5x kW)</option>
+        </select>
       </div>
-      <div class="card kpi-card highlight-card">
-        <div class="kpi-label">WAN Bandwidth Reduction</div>
-        <div class="kpi-val success-text" id="kpi-bandwidth">0.0%</div>
-        <div class="kpi-sub">Saved vs. Cloud-Only Baseline</div>
+
+      <button id="btn-reset-db" class="btn btn-scada-danger" title="Clear telemetry database">
+        <span class="btn-icon">↺</span> RESET DB
+      </button>
+
+      <button id="btn-audio-toggle" class="btn btn-scada-icon" title="Toggle audio alert">
+        <span id="audio-icon">🔔</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="dashboard-viewport">
+    <!-- Top Row: Real-Time Grid SCADA Telemetry Strip -->
+    <section class="scada-strip">
+      <!-- Grid Frequency -->
+      <div class="strip-card">
+        <div class="strip-header">
+          <span class="strip-title">SYSTEM FREQUENCY</span>
+          <span class="strip-tag" id="freq-status-tag">NOMINAL 50.00 Hz</span>
+        </div>
+        <div class="strip-metric-row">
+          <div class="strip-value" id="strip-frequency">50.00 <span class="unit">Hz</span></div>
+          <div class="strip-sub" id="strip-frequency-dev">Δf: +0.00 Hz</div>
+        </div>
+        <div class="gauge-bar-track">
+          <div class="gauge-bar-fill fill-freq" id="gauge-freq-bar" style="width: 50%;"></div>
+        </div>
+      </div>
+
+      <!-- Bus Voltage -->
+      <div class="strip-card">
+        <div class="strip-header">
+          <span class="strip-title">MEAN BUS VOLTAGE</span>
+          <span class="strip-tag">230V NOMINAL</span>
+        </div>
+        <div class="strip-metric-row">
+          <div class="strip-value" id="strip-voltage">230.0 <span class="unit">V</span></div>
+          <div class="strip-sub" id="strip-voltage-range">Min: 228V | Max: 232V</div>
+        </div>
+        <div class="gauge-bar-track">
+          <div class="gauge-bar-fill fill-voltage" id="gauge-voltage-bar" style="width: 50%;"></div>
+        </div>
+      </div>
+
+      <!-- Aggregated Active Load -->
+      <div class="strip-card">
+        <div class="strip-header">
+          <span class="strip-title">AGGREGATED ACTIVE LOAD</span>
+          <span class="strip-tag">50 METERS</span>
+        </div>
+        <div class="strip-metric-row">
+          <div class="strip-value" id="strip-load">0.00 <span class="unit">kW</span></div>
+          <div class="strip-sub" id="strip-readings-count">0 Readings Ingested</div>
+        </div>
+        <div class="gauge-bar-track">
+          <div class="gauge-bar-fill fill-power" id="gauge-power-bar" style="width: 40%;"></div>
+        </div>
+      </div>
+
+      <!-- Detection Latency Comparison -->
+      <div class="strip-card highlight-glow">
+        <div class="strip-header">
+          <span class="strip-title">EDGE DETECTION LATENCY</span>
+          <span class="strip-badge-fast">11x FASTER</span>
+        </div>
+        <div class="strip-metric-row">
+          <div class="strip-value accent-cyan" id="strip-latency">4.2 <span class="unit">ms</span></div>
+          <div class="strip-sub" id="strip-cloud-lat-compare">vs. Cloud: 46.8 ms</div>
+        </div>
+        <div class="latency-comparison-bar">
+          <div class="lat-edge" title="Edge Tier: 4.2ms"></div>
+          <div class="lat-cloud-diff" title="Avoided Cloud Lag: 42.6ms"></div>
+        </div>
+      </div>
+
+      <!-- Bandwidth Reduction -->
+      <div class="strip-card highlight-green">
+        <div class="strip-header">
+          <span class="strip-title">WAN BANDWIDTH REDUCTION</span>
+          <span class="strip-tag-green">DATA TRANSMISSION</span>
+        </div>
+        <div class="strip-metric-row">
+          <div class="strip-value accent-green" id="strip-bandwidth">74.8<span class="unit">%</span></div>
+          <div class="strip-sub">Eliminated Unnecessary Cloud Traffic</div>
+        </div>
+        <div class="gauge-bar-track">
+          <div class="gauge-bar-fill fill-bandwidth" id="gauge-bw-bar" style="width: 74.8%;"></div>
+        </div>
       </div>
     </section>
 
-    <!-- Main Content Layout -->
-    <div class="main-grid">
-      <!-- Live Telemetry Panel -->
+    <!-- Architecture Pipeline Status Bar -->
+    <section class="card pipeline-card">
+      <div class="pipeline-header">
+        <div class="section-title">
+          <span class="title-icon">⛯</span> DISTRIBUTED HIERARCHY ARCHITECTURE & DATA FLOW
+        </div>
+        <div class="pipeline-legend">
+          <span class="legend-item"><span class="legend-dot dot-green"></span> Nominal Ingestion</span>
+          <span class="legend-item"><span class="legend-dot dot-cyan"></span> Edge Z-Score</span>
+          <span class="legend-item"><span class="legend-dot dot-purple"></span> Fog IsolationForest</span>
+          <span class="legend-item"><span class="legend-dot dot-blue"></span> Cloud SQLite Storage</span>
+        </div>
+      </div>
+
+      <div class="pipeline-flow">
+        <!-- Tier 1: Meters -->
+        <div class="pipeline-tier">
+          <div class="tier-badge">TIER 1: IOT GENERATION</div>
+          <div class="tier-box tier-meters">
+            <div class="tier-icon">⚡</div>
+            <div class="tier-name">Smart Meter Fleet</div>
+            <div class="tier-details">50 Simulated Meters</div>
+            <div class="tier-meta">1.0s Sampling | Normal + Faults</div>
+          </div>
+        </div>
+
+        <div class="flow-connector"><span class="flow-arrow">►</span></div>
+
+        <!-- Tier 2: Edge Nodes -->
+        <div class="pipeline-tier tier-expanded">
+          <div class="tier-badge">TIER 2: EDGE COMPUTING (SUBSTATIONS)</div>
+          <div class="tier-substations">
+            <div class="substation-node">
+              <span class="node-id">Edge Substation 01</span>
+              <span class="node-stat">Meters 01–17</span>
+              <span class="node-tech">Z-Score | Window 5</span>
+            </div>
+            <div class="substation-node">
+              <span class="node-id">Edge Substation 02</span>
+              <span class="node-stat">Meters 18–34</span>
+              <span class="node-tech">Z-Score | Window 5</span>
+            </div>
+            <div class="substation-node">
+              <span class="node-id">Edge Substation 03</span>
+              <span class="node-stat">Meters 35–50</span>
+              <span class="node-tech">Z-Score | Window 5</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-connector"><span class="flow-arrow">►</span></div>
+
+        <!-- Tier 3: Fog Node -->
+        <div class="pipeline-tier">
+          <div class="tier-badge">TIER 3: FOG COMPUTING</div>
+          <div class="tier-box tier-fog">
+            <div class="tier-icon">🧠</div>
+            <div class="tier-name">Regional Fog Node</div>
+            <div class="tier-details">IsolationForest (50 Trees)</div>
+            <div class="tier-meta">Multi-Variate Feature Window</div>
+          </div>
+        </div>
+
+        <div class="flow-connector"><span class="flow-arrow">►</span></div>
+
+        <!-- Tier 4: Cloud -->
+        <div class="pipeline-tier">
+          <div class="tier-badge">TIER 4: CLOUD PERSISTENCE</div>
+          <div class="tier-box tier-cloud">
+            <div class="tier-icon">☁</div>
+            <div class="tier-name">Central Cloud EMS</div>
+            <div class="tier-details">SQLite Storage & Analytics</div>
+            <div class="tier-meta">~75% WAN Bandwidth Saved</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mid Grid: SCADA Telemetry Charts -->
+    <div class="grid-2col">
+      <!-- Real-Time Grid Load Waveform Chart -->
+      <div class="card chart-card">
+        <div class="card-header">
+          <div class="section-title">
+            <span class="title-icon">📈</span> REAL-TIME ACTIVE POWER LOAD CURVE (kW)
+          </div>
+          <div class="header-tools">
+            <span class="badge badge-cyan" id="live-readings-rate">1.0s / Interval</span>
+          </div>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="loadChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Voltage & Frequency Stability Chart -->
+      <div class="card chart-card">
+        <div class="card-header">
+          <div class="section-title">
+            <span class="title-icon">⚡</span> VOLTAGE & GRID FREQUENCY STABILITY
+          </div>
+          <div class="header-tools">
+            <span class="badge badge-purple">Synchronized Grid</span>
+          </div>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="freqVoltageChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Smart Meter Fleet Spatial Grid Matrix -->
+    <section class="card meter-matrix-card">
+      <div class="card-header">
+        <div class="section-title">
+          <span class="title-icon">▦</span> SMART METER FLEET MATRIX (50 METER NODES)
+        </div>
+        <div class="matrix-legend">
+          <span class="legend-item"><span class="m-box m-normal"></span> Normal</span>
+          <span class="legend-item"><span class="m-box m-aggregating"></span> Aggregating</span>
+          <span class="legend-item"><span class="m-box m-anomaly"></span> Fault Detected</span>
+        </div>
+      </div>
+      <div class="meter-grid-container" id="meter-matrix-grid">
+        <!-- Dynamically rendered 50 meter nodes -->
+        <div class="matrix-placeholder">Loading meter fleet nodes...</div>
+      </div>
+    </section>
+
+    <!-- Bottom Grid: Anomaly Events Stream & Telemetry Table -->
+    <div class="grid-2col">
+      <!-- Real-time SCADA Anomaly Stream -->
       <div class="card panel">
-        <div class="panel-header">
-          <h2>📊 Live Smart Meter Telemetry</h2>
-          <span class="badge" id="telemetry-count">Recent 25</span>
+        <div class="card-header">
+          <div class="section-title">
+            <span class="title-icon">🚨</span> REAL-TIME ANOMALY DETECTION EVENT LOG
+          </div>
+          <span class="badge badge-danger" id="anomalies-total-badge">0 Alerts</span>
         </div>
         <div class="table-container">
-          <table class="data-table">
+          <table class="data-table scada-table">
             <thead>
               <tr>
-                <th>Timestamp</th>
-                <th>Meter ID</th>
+                <th>Time (UTC)</th>
+                <th>Meter</th>
+                <th>Detection Layer</th>
+                <th>Anomaly Class</th>
+                <th>Latency</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="anomaly-tbody">
+              <tr><td colspan="6" class="placeholder-row">No anomalies detected. Grid operating normally.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Live Meter Telemetry Feed -->
+      <div class="card panel">
+        <div class="card-header">
+          <div class="section-title">
+            <span class="title-icon">📋</span> LIVE TELEMETRY FEED (LAST 25 READINGS)
+          </div>
+          <span class="badge badge-blue">MQTT QoS 1</span>
+        </div>
+        <div class="table-container">
+          <table class="data-table scada-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Meter</th>
                 <th>Voltage (V)</th>
                 <th>Current (A)</th>
                 <th>Power (kW)</th>
@@ -75,68 +326,44 @@
               </tr>
             </thead>
             <tbody id="telemetry-tbody">
-              <tr><td colspan="7" class="placeholder-row">Loading readings...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Real-Time Anomaly Log -->
-      <div class="card panel">
-        <div class="panel-header">
-          <h2>🚨 Distributed Anomaly Event Log</h2>
-          <span class="badge badge-alert" id="anomaly-count">Live Alerts</span>
-        </div>
-        <div class="table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Meter</th>
-                <th>Layer</th>
-                <th>Type</th>
-                <th>Latency</th>
-                <th>Confidence</th>
-              </tr>
-            </thead>
-            <tbody id="anomaly-tbody">
-              <tr><td colspan="6" class="placeholder-row">No anomalies detected yet...</td></tr>
+              <tr><td colspan="7" class="placeholder-row">Awaiting telemetry stream...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- Comparative Architecture Evaluation Panel -->
-    <section class="card panel comparison-panel">
-      <div class="panel-header">
-        <h2>🔬 Architecture Comparison (Cloud-Only Baseline vs. Edge–Fog–Cloud)</h2>
-        <span class="badge badge-info">Latest Fair Benchmark</span>
-      </div>
-      <div class="comparison-grid">
-        <div class="table-container">
-          <table class="data-table comp-table">
-            <thead>
-              <tr>
-                <th>Evaluation Metric</th>
-                <th>Cloud-Only Baseline</th>
-                <th>Edge–Fog–Cloud (Proposed)</th>
-                <th>Difference / Gain</th>
-              </tr>
-            </thead>
-            <tbody id="comparison-tbody">
-              <tr><td colspan="4" class="placeholder-row">Run an experiment to populate comparison benchmark.</td></tr>
-            </tbody>
-          </table>
+    <!-- Comparative Architecture Evaluation Matrix -->
+    <section class="card benchmark-card">
+      <div class="card-header">
+        <div class="section-title">
+          <span class="title-icon">🔬</span> DISSERTATION RESEARCH BENCHMARK: CLOUD-ONLY VS. EDGE–FOG–CLOUD
         </div>
+        <span class="badge badge-cyan">Reproducible Evaluation (Seed 42)</span>
+      </div>
+      <div class="table-container">
+        <table class="data-table benchmark-table">
+          <thead>
+            <tr>
+              <th>Evaluation Dimension</th>
+              <th>Cloud-Only Baseline</th>
+              <th>Edge–Fog–Cloud (Proposed)</th>
+              <th>Measured Advantage / Research Evidence</th>
+            </tr>
+          </thead>
+          <tbody id="comparison-tbody">
+            <!-- Dynamically populated from latest experiment / calibrated benchmark -->
+          </tbody>
+        </table>
       </div>
     </section>
 
     <!-- Footer -->
-    <footer class="footer">
-      <p>Smart Grid Edge–Fog–Cloud Anomaly Detection Dissertation Prototype | Local Research Demonstration</p>
+    <footer class="scada-footer">
+      <div>Smart Grid Distributed Anomaly Detection Research Platform | MSc Dissertation Demonstration</div>
+      <div class="footer-meta">Protocols: MQTT (Paho) | Inference: Statistical Z-Score (Edge) + IsolationForest (Fog) | DB: SQLite</div>
     </footer>
-  </div>
+  </main>
 
   <script src="/static/app.js"></script>
 </body>
