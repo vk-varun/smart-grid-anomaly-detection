@@ -92,6 +92,7 @@ class LiveSimulationWorker:
             self.anomaly_rate = anomaly_rate
             self.fleet = create_meter_fleet(self.num_meters, seed=int(time.time()))
             self.anomaly_gen = AnomalyGenerator(anomaly_rate=self.anomaly_rate, seed=int(time.time()))
+            self.stabilize_until = 0.0
             self.is_running = True
             self.thread = threading.Thread(target=self._run_loop, daemon=True)
             self.thread.start()
@@ -99,6 +100,49 @@ class LiveSimulationWorker:
     def stop(self):
         with self._lock:
             self.is_running = False
+
+    def stabilize_grid(self) -> Dict[str, Any]:
+        """
+        Activates SCADA Volt-VAR Stabilization & Frequency Remediation:
+        - Clears all active faults & collective sequences
+        - Suppresses random fluctuations for 30 seconds
+        - Regulates fleet voltage to 230.0V ± 0.5V and frequency to 50.00Hz ± 0.01Hz
+        """
+        with self._lock:
+            self.forced_fault = None
+            self.anomaly_gen.reset(seed=int(time.time()))
+            self.stabilize_until = time.time() + 30.0
+
+            for node in self.edge_nodes.values():
+                node["det"].reset()
+            self.cloud_baseline_det.reset()
+            self.fog_det.reset()
+
+        # Log recovery alert
+        recovery_det = AnomalyDetectionResult(
+            experiment_id=f"auto_heal_{int(time.time())}",
+            meter_id="GRID-SUBSTATION-EMS",
+            detection_layer="edge",
+            anomaly_type="auto_heal_restored",
+            detected=False,
+            source_timestamp=utc_iso_now(),
+            detected_at=utc_iso_now(),
+            latency_ms=1.5,
+            confidence=1.0,
+            details={"action": "VOLT_VAR_COMPENSATION", "status": "GRID_STABILIZED"},
+        )
+        self.db.insert_detection(recovery_det)
+        return {"status": "stabilized", "duration_seconds": 30}
+
+    def set_mode(self, mode: str):
+        with self._lock:
+            if mode in ["distributed", "cloud_baseline"]:
+                self.mode = mode
+
+    def set_speed(self, speed_factor: float):
+        with self._lock:
+            # interval = 1.0 / speed_factor (e.g. 1x = 1.0s, 2x = 0.5s, 4x = 0.25s)
+            self.sampling_interval = max(0.1, 1.0 / max(0.5, speed_factor))
 
     def inject_fault(self, fault_type: str = "voltage_spike", meter_id: Optional[str] = None):
         with self._lock:
@@ -118,23 +162,40 @@ class LiveSimulationWorker:
             step += 1
             readings_batch = []
             detections_batch = []
+            is_stabilized = time.time() < getattr(self, "stabilize_until", 0.0)
 
             for meter in self.fleet:
                 raw_reading = meter.generate_reading(time_step=step, interval_seconds=self.sampling_interval)
-                final_reading = self.anomaly_gen.process_reading(raw_reading)
+
+                if is_stabilized:
+                    raw_reading.voltage = round(230.0 + random.uniform(-0.5, 0.5), 2)
+                    raw_reading.frequency_hz = round(50.00 + random.uniform(-0.012, 0.012), 2)
+                    raw_reading.ground_truth_anomaly = False
+                    raw_reading.ground_truth_type = None
+                    final_reading = raw_reading
+                else:
+                    final_reading = self.anomaly_gen.process_reading(raw_reading)
 
                 # Check if user manually triggered a fault
                 with self._lock:
                     if self.forced_fault and self.forced_fault["meter_id"] == meter.meter_id:
                         ftype = self.forced_fault["type"]
                         final_reading.ground_truth_anomaly = True
-                        final_reading.ground_truth_type = "point" if "spike" in ftype or "sag" in ftype else "contextual"
                         if ftype == "voltage_spike":
                             final_reading.voltage = 278.5
+                            final_reading.ground_truth_type = "point"
                         elif ftype == "voltage_sag":
                             final_reading.voltage = 175.2
+                            final_reading.ground_truth_type = "point"
                         elif ftype == "power_surge":
                             final_reading.power_kw = round(final_reading.power_kw * 5.5, 3)
+                            final_reading.ground_truth_type = "point"
+                        elif ftype == "frequency_drop":
+                            final_reading.frequency_hz = 48.65
+                            final_reading.ground_truth_type = "contextual"
+                        elif ftype == "collective_ramp":
+                            final_reading.power_kw = round(final_reading.power_kw * 2.8, 3)
+                            final_reading.ground_truth_type = "collective"
                         self.forced_fault = None
 
                 readings_batch.append(final_reading)
@@ -570,6 +631,62 @@ def inject_fault(fault_type: str = Query("voltage_spike")):
     """Injects an instantaneous grid disturbance."""
     sim_worker.inject_fault(fault_type=fault_type)
     return {"status": "injected", "fault_type": fault_type}
+
+
+@app.post("/api/simulation/stabilize")
+def stabilize_grid():
+    """Triggers Volt-VAR optimization and governor frequency restoration."""
+    res = sim_worker.stabilize_grid()
+    return res
+
+
+class SetModeRequest(BaseModel):
+    mode: str = "distributed"  # "distributed" or "cloud_baseline"
+
+
+@app.post("/api/simulation/set-mode")
+def set_simulation_mode(req: SetModeRequest):
+    """Dynamically switches between Edge-Fog-Cloud and Cloud-Only architectures."""
+    sim_worker.set_mode(req.mode)
+    return {"status": "mode_updated", "current_mode": sim_worker.mode}
+
+
+class SetSpeedRequest(BaseModel):
+    speed: float = 1.0  # 1.0, 2.0, 5.0
+
+
+@app.post("/api/simulation/set-speed")
+def set_simulation_speed(req: SetSpeedRequest):
+    """Sets telemetry streaming rate."""
+    sim_worker.set_speed(req.speed)
+    return {"status": "speed_updated", "interval_seconds": sim_worker.sampling_interval}
+
+
+@app.get("/api/simulation/export-csv")
+def export_telemetry_csv():
+    """Generates a downloadable CSV snapshot of recent telemetry."""
+    from fastapi.responses import Response
+    with db.get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT meter_id, timestamp, voltage, current, power_kw, energy_kwh, frequency_hz, ground_truth_anomaly, ground_truth_type
+            FROM readings
+            ORDER BY id DESC
+            LIMIT 500
+            """
+        ).fetchall()
+
+    if not rows:
+        csv_content = "meter_id,timestamp,voltage,current,power_kw,energy_kwh,frequency_hz,ground_truth_anomaly,ground_truth_type\n"
+    else:
+        df = pd.DataFrame([dict(r) for r in rows])
+        csv_content = df.to_csv(index=False)
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=smartgrid_telemetry_snapshot.csv"},
+    )
 
 
 @app.post("/api/database/reset")

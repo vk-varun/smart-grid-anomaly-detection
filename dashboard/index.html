@@ -44,6 +44,11 @@
       <button id="btn-stream-toggle" class="btn btn-scada-primary" title="Start/Stop continuous telemetry stream">
         <span class="btn-icon">▶</span> <span id="btn-stream-text">START LIVE STREAM</span>
       </button>
+
+      <!-- Auto-Restore / Stabilize Button -->
+      <button id="btn-stabilize" class="btn btn-scada-heal" title="Engage SCADA Volt-VAR regulation to eliminate fluctuations and restore nominal 50.00Hz / 230.0V">
+        <span class="btn-icon">🛡️</span> AUTO-RESTORE GRID
+      </button>
       
       <div class="dropdown-group">
         <button id="btn-inject-fault" class="btn btn-scada-warning" title="Simulate deliberate grid disturbance">
@@ -52,9 +57,28 @@
         <select id="fault-type-select" class="scada-select">
           <option value="voltage_spike">Voltage Surge (+280V)</option>
           <option value="voltage_sag">Brownout Sag (-175V)</option>
-          <option value="power_surge">Load Surge (5x kW)</option>
+          <option value="power_surge">Load Inrush (5.5x kW)</option>
+          <option value="frequency_drop">Under-Frequency (48.65 Hz)</option>
+          <option value="collective_ramp">Fog Collective Ramp Drift</option>
         </select>
       </div>
+
+      <!-- Architecture Switcher -->
+      <select id="arch-mode-select" class="scada-select arch-selector" title="Switch Live Architecture Pipeline">
+        <option value="distributed">EDGE–FOG–CLOUD</option>
+        <option value="cloud_baseline">CLOUD BASELINE</option>
+      </select>
+
+      <!-- Speed Selector -->
+      <select id="speed-select" class="scada-select speed-selector" title="Streaming Rate Multiplier">
+        <option value="1">1x SPEED</option>
+        <option value="2">2x FAST</option>
+        <option value="5">5x TURBO</option>
+      </select>
+
+      <a id="btn-export-csv" href="/api/simulation/export-csv" class="btn btn-scada-icon" title="Export Telemetry Snapshot CSV">
+        <span>💾</span> CSV
+      </a>
 
       <button id="btn-reset-db" class="btn btn-scada-danger" title="Clear telemetry database">
         <span class="btn-icon">↺</span> RESET DB

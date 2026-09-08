@@ -254,6 +254,39 @@ body.scada-theme {
   box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
 }
 
+.btn-scada-heal {
+  background: rgba(16, 185, 129, 0.18);
+  color: var(--neon-green);
+  border-color: var(--neon-green);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.25);
+}
+
+.btn-scada-heal:hover {
+  background: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.5);
+}
+
+.arch-selector {
+  border-color: var(--neon-cyan) !important;
+  color: var(--neon-cyan) !important;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.speed-selector {
+  border-color: var(--neon-yellow) !important;
+  color: var(--neon-yellow) !important;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+a.btn-scada-icon {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .btn-scada-icon {
   background: rgba(255, 255, 255, 0.05);
   border-color: var(--border-dim);

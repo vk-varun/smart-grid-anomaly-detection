@@ -58,5 +58,20 @@ def test_simulation_lifecycle(client):
     fault_res = client.post("/api/simulation/inject-fault?fault_type=voltage_spike")
     assert fault_res.status_code == 200
 
+    stabilize_res = client.post("/api/simulation/stabilize")
+    assert stabilize_res.status_code == 200
+    assert stabilize_res.json()["status"] == "stabilized"
+
+    mode_res = client.post("/api/simulation/set-mode", json={"mode": "cloud_baseline"})
+    assert mode_res.status_code == 200
+    assert mode_res.json()["current_mode"] == "cloud_baseline"
+
+    speed_res = client.post("/api/simulation/set-speed", json={"speed": 2.0})
+    assert speed_res.status_code == 200
+
+    export_res = client.get("/api/simulation/export-csv")
+    assert export_res.status_code == 200
+    assert "text/csv" in export_res.headers.get("content-type", "")
+
     stop_res = client.post("/api/simulation/stop")
     assert stop_res.status_code == 200

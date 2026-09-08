@@ -35,6 +35,35 @@ function playAlertTone() {
   }
 }
 
+// Synthetic Web Audio Affirmative Restoration Chime
+function playRestorationTone() {
+  if (!audioEnabled) return;
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sine";
+    // Ascending major chord tones (C5 -> E5 -> G5)
+    osc.frequency.setValueAtTime(523.25, now);
+    osc.frequency.setValueAtTime(659.25, now + 0.1);
+    osc.frequency.setValueAtTime(783.99, now + 0.2);
+
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.38);
+  } catch (e) {}
+}
+
 // Clock Updater
 function updateClock() {
   const now = new Date();
@@ -456,10 +485,12 @@ function setupControls() {
     streamBtn.addEventListener("click", async () => {
       try {
         if (!isSimulationActive) {
+          const archSelect = document.getElementById("arch-mode-select");
+          const mode = archSelect ? archSelect.value : "distributed";
           await fetch(`${API_BASE}/api/simulation/start`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mode: "distributed", meters: 50, anomaly_rate: 0.04 }),
+            body: JSON.stringify({ mode: mode, meters: 50, anomaly_rate: 0.04 }),
           });
         } else {
           await fetch(`${API_BASE}/api/simulation/stop`, { method: "POST" });
@@ -467,6 +498,31 @@ function setupControls() {
         updateSummary();
       } catch (err) {
         console.error("Stream toggle error:", err);
+      }
+    });
+  }
+
+  // Auto-Restore / Stabilize Grid (Volt-VAR & Frequency Remediation)
+  const stabilizeBtn = document.getElementById("btn-stabilize");
+  if (stabilizeBtn) {
+    stabilizeBtn.addEventListener("click", async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/simulation/stabilize`, { method: "POST" });
+        if (res.ok) {
+          playRestorationTone();
+          const statusBadge = document.getElementById("grid-status-badge");
+          const statusText = document.getElementById("grid-status-text");
+          if (statusBadge && statusText) {
+            statusBadge.className = "grid-status-pill status-nominal";
+            statusText.textContent = "STABILIZED: VOLT-VAR COMPENSATED";
+          }
+          // Visual feedback pulse
+          stabilizeBtn.style.boxShadow = "0 0 25px #10b981";
+          setTimeout(() => { stabilizeBtn.style.boxShadow = ""; }, 1200);
+          refreshAll();
+        }
+      } catch (err) {
+        console.error("Stabilize error:", err);
       }
     });
   }
@@ -482,8 +538,44 @@ function setupControls() {
           method: "POST",
         });
         playAlertTone();
+        refreshAll();
       } catch (err) {
         console.error("Inject fault error:", err);
+      }
+    });
+  }
+
+  // Architecture Switcher
+  const archSelect = document.getElementById("arch-mode-select");
+  if (archSelect) {
+    archSelect.addEventListener("change", async () => {
+      const mode = archSelect.value;
+      try {
+        await fetch(`${API_BASE}/api/simulation/set-mode`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: mode }),
+        });
+        refreshAll();
+      } catch (err) {
+        console.error("Arch switch error:", err);
+      }
+    });
+  }
+
+  // Speed Multiplier
+  const speedSelect = document.getElementById("speed-select");
+  if (speedSelect) {
+    speedSelect.addEventListener("change", async () => {
+      const speed = parseFloat(speedSelect.value);
+      try {
+        await fetch(`${API_BASE}/api/simulation/set-speed`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ speed: speed }),
+        });
+      } catch (err) {
+        console.error("Speed switch error:", err);
       }
     });
   }
