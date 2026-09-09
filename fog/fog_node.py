@@ -1,6 +1,16 @@
+import argparse
 import json
 import logging
+from pathlib import Path
+import sys
+import time
 from typing import Any, Dict, List, Optional
+
+# Ensure project root in sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from common.logging_config import setup_logger
 from common.message_schema import (
     AnomalyDetectionResult,
@@ -81,3 +91,33 @@ class FogNode:
             raise ValueError("MQTT client must be configured to listen")
         self.mqtt_client.subscribe(topic_sub, self.handle_edge_payload)
         self.logger.info(f"[{self.fog_id}] Listening on {topic_sub}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run Regional Fog Computing Node")
+    parser.add_argument("--host", type=str, default="localhost", help="MQTT broker host")
+    parser.add_argument("--port", type=int, default=1883, help="MQTT broker port")
+    parser.add_argument("--fog-id", type=str, default="fog_01", help="Fog Node ID")
+    args = parser.parse_args()
+
+    print(f"[{args.fog_id}] Connecting to MQTT broker at {args.host}:{args.port}...")
+    mqtt_client = MQTTClientWrapper(client_id=f"{args.fog_id}_{int(time.time())}", host=args.host, port=args.port)
+    if not mqtt_client.connect():
+        print(f"[ERROR] Could not connect to MQTT broker at {args.host}:{args.port}")
+        return
+
+    fog_node = FogNode(fog_id=args.fog_id, mqtt_client=mqtt_client)
+    fog_node.start_listening()
+    print(f"[{args.fog_id}] Running IsolationForest on aggregated edge streams. Press Ctrl+C to stop.")
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print(f"\n[{args.fog_id}] Stopping...")
+    finally:
+        mqtt_client.disconnect()
+
+
+if __name__ == "__main__":
+    main()

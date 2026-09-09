@@ -1,5 +1,15 @@
+import argparse
 import logging
+from pathlib import Path
+import sys
+import time
 from typing import Any, Dict, List, Optional, Set
+
+# Ensure project root in sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from common.logging_config import setup_logger
 from common.message_schema import (
     AnomalyDetectionResult,
@@ -119,3 +129,38 @@ class EdgeNode:
             )
             topic = f"smartgrid/edge/{self.edge_id}/processed"
             self.mqtt_client.publish(topic, payload)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run Local Edge Computing Node")
+    parser.add_argument("--host", type=str, default="localhost", help="MQTT broker host")
+    parser.add_argument("--port", type=int, default=1883, help="MQTT broker port")
+    parser.add_argument("--edge-id", type=str, default="edge_01", help="Edge Node ID (e.g. edge_01, edge_02, edge_03)")
+    parser.add_argument("--meters", type=str, default=None, help="Comma-separated assigned meter IDs (e.g. meter_001,meter_002)")
+    args = parser.parse_args()
+
+    assigned = set(args.meters.split(",")) if args.meters else set()
+
+    print(f"[{args.edge_id}] Connecting to MQTT broker at {args.host}:{args.port}...")
+    mqtt_client = MQTTClientWrapper(client_id=f"{args.edge_id}_{int(time.time())}", host=args.host, port=args.port)
+    if not mqtt_client.connect():
+        print(f"[ERROR] Could not connect to MQTT broker at {args.host}:{args.port}")
+        return
+
+    edge_node = EdgeNode(edge_id=args.edge_id, assigned_meter_ids=assigned, mqtt_client=mqtt_client)
+    edge_node.start_listening()
+    assigned_label = f"{len(assigned)} meters" if assigned else "all incoming meters"
+    print(f"[{args.edge_id}] Active and filtering for {assigned_label}. Press Ctrl+C to stop.")
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print(f"\n[{args.edge_id}] Flushing remaining buffers and stopping...")
+        edge_node.flush_and_send()
+    finally:
+        mqtt_client.disconnect()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,16 @@
+import argparse
 import json
 import logging
+from pathlib import Path
+import sys
+import time
 from typing import Any, Dict, List, Optional
+
+# Ensure project root in sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from cloud.database import DatabaseManager
 from common.logging_config import setup_logger
 from common.message_schema import (
@@ -94,3 +104,35 @@ class CloudProcessor:
             "fog_detections": self.fog_detections_received,
             "total_detections": len(self.all_detections),
         }
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run Distributed Cloud Processor")
+    parser.add_argument("--host", type=str, default="localhost", help="MQTT broker host")
+    parser.add_argument("--port", type=int, default=1883, help="MQTT broker port")
+    parser.add_argument("--exp-id", type=str, default=None, help="Experiment ID")
+    args = parser.parse_args()
+
+    exp_id = args.exp_id or f"cloud_dist_{int(time.time())}"
+    print(f"[DISTRIBUTED CLOUD] Connecting to MQTT broker at {args.host}:{args.port} (Exp: {exp_id})...")
+
+    mqtt_client = MQTTClientWrapper(client_id=f"cloud_dist_{int(time.time())}", host=args.host, port=args.port)
+    if not mqtt_client.connect():
+        print(f"[ERROR] Could not connect to MQTT broker at {args.host}:{args.port}")
+        return
+
+    processor = CloudProcessor(experiment_id=exp_id, mqtt_client=mqtt_client)
+    processor.start_listening()
+    print("[DISTRIBUTED CLOUD] Active and listening for Edge/Fog summaries & alerts. Press Ctrl+C to stop.")
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n[DISTRIBUTED CLOUD] Stopping processor...")
+    finally:
+        mqtt_client.disconnect()
+
+
+if __name__ == "__main__":
+    main()
