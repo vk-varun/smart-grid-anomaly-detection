@@ -35,8 +35,8 @@ class FogIsolationForestDetector:
         self._is_fitted = False
 
     def _fit_model_if_needed(self):
-        """Fits or updates the Isolation Forest model once sufficient historical features are collected."""
-        if len(self.feature_history) >= self.min_fit_samples:
+        """Fits or updates the Isolation Forest model periodically."""
+        if len(self.feature_history) >= self.min_fit_samples and (not self._is_fitted or len(self.feature_history) % 50 == 0):
             X = np.array(self.feature_history[-200:])  # fit on recent rolling window
             self.model = IsolationForest(
                 contamination=self.contamination,
@@ -70,19 +70,20 @@ class FogIsolationForestDetector:
         pred = self.model.predict(X_sample)[0]  # -1 for anomaly, 1 for normal
         score = self.model.decision_function(X_sample)[0]  # lower = more anomalous
 
-        if pred == -1:
-            latency_ms = calculate_latency_ms(reading.timestamp)
-            confidence = min(1.0, round(float(abs(score) * 2.5) + 0.5, 3))
+        # Strong outlier verification (suppresses borderline density false alarms)
+        is_fog_anomaly = (pred == -1 and score < -0.045) or (abs(features[0]) > 30.0 or abs(features[1]) > 0.65 or features[2] > 2.8)
+
+        if is_fog_anomaly:
+            confidence = min(1.0, round(float(abs(score) * 2.5) + 0.6, 3))
             
-            # Determine probable anomaly type from features
-            rate_of_change = features[6]
-            rolling_std_p = features[5]
-            if abs(rate_of_change) > 1.0:
+            atype = "contextual"
+            if abs(features[0]) > 25.0 or features[2] > 3.0:
                 atype = "point"
-            elif rolling_std_p > 0.4:
-                atype = "collective"
-            else:
+            elif abs(features[1]) > 0.5:
                 atype = "contextual"
+            elif features[5] > 0.35 or abs(features[4]) > 0.8:
+                atype = "collective"
+            latency_ms = calculate_latency_ms(reading.timestamp)
 
             return AnomalyDetectionResult(
                 experiment_id=experiment_id,

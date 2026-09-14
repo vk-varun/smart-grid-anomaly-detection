@@ -35,21 +35,27 @@ class FogFeatureAggregator:
         if len(buf) < 3:
             return None
 
-        # Compute engineered features
+        # Compute engineered features normalized to the meter's own operating baseline
         powers = [r.power_kw for r in buf]
         rolling_mean_p = float(np.mean(powers))
-        rolling_std_p = float(np.std(powers))
+        rolling_std_p = max(0.08, float(np.std(powers)))
         
         # Rate of change over last 2 readings
         rate_of_change = (buf[-1].power_kw - buf[-2].power_kw) if len(buf) >= 2 else 0.0
 
+        voltage_dev = reading.voltage - 230.0
+        freq_dev = reading.frequency_hz - 50.00
+        mean_floor = max(0.35, rolling_mean_p)
+        power_ratio = reading.power_kw / mean_floor
+        z_norm = (reading.power_kw - rolling_mean_p) / rolling_std_p
+        rel_rate = rate_of_change / mean_floor
+
         feature_vector = [
-            reading.voltage,
-            reading.current,
-            reading.power_kw,
-            reading.frequency_hz,
-            rolling_mean_p,
+            voltage_dev,
+            freq_dev,
+            power_ratio,
+            z_norm,
+            rel_rate,
             rolling_std_p,
-            rate_of_change,
         ]
         return feature_vector

@@ -71,11 +71,15 @@ class EdgeZScoreDetector:
             is_anomalous = True
             anomaly_type = "point" if z_score > 4.5 else "contextual"
             confidence = min(1.0, round(z_score / (self.zscore_threshold + 2.0), 3))
-        # Edge physical limits check (e.g. overvoltage / severe sag)
+        # Edge physical limits check (e.g. overvoltage / severe sag / frequency drop)
         elif reading.voltage < 195.0 or reading.voltage > 265.0:
             is_anomalous = True
             anomaly_type = "point"
             confidence = 0.95
+        elif reading.frequency_hz < 49.0 or reading.frequency_hz > 51.0:
+            is_anomalous = True
+            anomaly_type = "contextual"
+            confidence = 0.85
 
         # Adapt to legitimate persistent load step shifts (e.g. appliance turned on)
         if is_anomalous:

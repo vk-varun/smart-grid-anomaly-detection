@@ -94,9 +94,9 @@ class LiveSimulationWorker:
         # Processors for live feed
         self.cloud_baseline_det = CloudBaselineDetector(zscore_threshold=3.0, rolling_window_size=15, min_samples=5)
         self.edge_nodes = {
-            "edge_01": {"det": EdgeZScoreDetector(zscore_threshold=3.0), "filt": EdgeDataFilter("edge_01", 5)},
-            "edge_02": {"det": EdgeZScoreDetector(zscore_threshold=3.0), "filt": EdgeDataFilter("edge_02", 5)},
-            "edge_03": {"det": EdgeZScoreDetector(zscore_threshold=3.0), "filt": EdgeDataFilter("edge_03", 5)},
+            "edge_01": {"det": EdgeZScoreDetector(zscore_threshold=3.0, rolling_window_size=15, min_samples=5), "filt": EdgeDataFilter("edge_01", 5)},
+            "edge_02": {"det": EdgeZScoreDetector(zscore_threshold=3.0, rolling_window_size=15, min_samples=5), "filt": EdgeDataFilter("edge_02", 5)},
+            "edge_03": {"det": EdgeZScoreDetector(zscore_threshold=3.0, rolling_window_size=15, min_samples=5), "filt": EdgeDataFilter("edge_03", 5)},
         }
         self.fog_det = FogIsolationForestDetector(contamination=0.04, min_fit_samples=10)
         self.fleet = create_meter_fleet(self.num_meters, seed=int(time.time()))
