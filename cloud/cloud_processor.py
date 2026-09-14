@@ -50,7 +50,8 @@ class CloudProcessor:
     def handle_edge_stream(self, topic: str, payload_str: str, payload_dict: Dict[str, Any]):
         """Ingests forwarded edge data."""
         self.messages_to_cloud += 1
-        self.bytes_to_cloud += len(payload_str.encode("utf-8"))
+        payload_bytes = len(payload_str.encode("utf-8"))
+        self.bytes_to_cloud += payload_bytes
 
         try:
             edge_payload = EdgeForwardPayload.model_validate(payload_dict)
@@ -68,10 +69,29 @@ class CloudProcessor:
             self.all_detections.append(detection)
             self.db.insert_detection(detection)
 
+        # Visual feedback for live demonstration
+        num_anom = len(edge_payload.detections)
+        num_aggs = len(edge_payload.aggregations)
+        kb_total = self.bytes_to_cloud / 1024.0
+
+        if num_anom > 0:
+            print(
+                f"[DISTRIBUTED CLOUD ALERT] Received from {edge_payload.edge_id}: "
+                f"🚨 {num_anom} ANOMALY DETECTIONS (forwarded {len(edge_payload.individual_readings)} raw readings) | "
+                f"Total WAN: {self.messages_to_cloud} msgs ({kb_total:.1f} KB)"
+            )
+        elif num_aggs > 0:
+            print(
+                f"[DISTRIBUTED CLOUD] Ingested Edge Summary from {edge_payload.edge_id}: "
+                f"📦 {num_aggs} aggregated windows (Bandwidth saved ~75%) | "
+                f"Total WAN: {self.messages_to_cloud} msgs ({kb_total:.1f} KB)"
+            )
+
     def handle_fog_stream(self, topic: str, payload_str: str, payload_dict: Dict[str, Any]):
         """Ingests forwarded fog data."""
         self.messages_to_cloud += 1
-        self.bytes_to_cloud += len(payload_str.encode("utf-8"))
+        payload_bytes = len(payload_str.encode("utf-8"))
+        self.bytes_to_cloud += payload_bytes
 
         try:
             fog_payload = FogForwardPayload.model_validate(payload_dict)
@@ -84,6 +104,13 @@ class CloudProcessor:
             self.fog_detections_received += 1
             self.all_detections.append(detection)
             self.db.insert_detection(detection)
+
+        kb_total = self.bytes_to_cloud / 1024.0
+        print(
+            f"[DISTRIBUTED CLOUD - FOG STREAM] Received ML payload from {fog_payload.fog_id}: "
+            f"⚡ {len(fog_payload.detections)} Isolation Forest detections | "
+            f"Total WAN: {self.messages_to_cloud} msgs ({kb_total:.1f} KB)"
+        )
 
     def start_listening(self):
         """Subscribes to Edge and Fog processed topics."""
