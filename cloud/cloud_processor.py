@@ -45,6 +45,8 @@ class CloudProcessor:
         self.bytes_to_cloud = 0
         self.edge_detections_received = 0
         self.fog_detections_received = 0
+        self.summaries_received = 0
+        self.last_status_print = time.time()
         self.all_detections: List[AnomalyDetectionResult] = []
 
     def handle_edge_stream(self, topic: str, payload_str: str, payload_dict: Dict[str, Any]):
@@ -69,22 +71,27 @@ class CloudProcessor:
             self.all_detections.append(detection)
             self.db.insert_detection(detection)
 
-        # Visual feedback for live demonstration
         num_anom = len(edge_payload.detections)
         num_aggs = len(edge_payload.aggregations)
+        self.summaries_received += num_aggs
         kb_total = self.bytes_to_cloud / 1024.0
 
+        # Print immediately on genuine anomaly alerts
         if num_anom > 0:
             print(
-                f"[DISTRIBUTED CLOUD ALERT] Received from {edge_payload.edge_id}: "
-                f"🚨 {num_anom} ANOMALY DETECTIONS (forwarded {len(edge_payload.individual_readings)} raw readings) | "
+                f"[DISTRIBUTED CLOUD ALERT] 🚨 {edge_payload.edge_id} detected {num_anom} anomaly! "
+                f"Forwarded {len(edge_payload.individual_readings)} raw readings for forensic analysis | "
                 f"Total WAN: {self.messages_to_cloud} msgs ({kb_total:.1f} KB)"
             )
-        elif num_aggs > 0:
+
+        # Print clean periodic heartbeat for normal aggregations (every 10s)
+        now = time.time()
+        if now - self.last_status_print >= 10.0:
+            self.last_status_print = now
             print(
-                f"[DISTRIBUTED CLOUD] Ingested Edge Summary from {edge_payload.edge_id}: "
-                f"📦 {num_aggs} aggregated windows (Bandwidth saved ~75%) | "
-                f"Total WAN: {self.messages_to_cloud} msgs ({kb_total:.1f} KB)"
+                f"[DISTRIBUTED CLOUD STATUS] Ingested {self.summaries_received} Edge summaries | "
+                f"Bandwidth Saved: ~75% vs baseline | Total WAN Traffic: {self.messages_to_cloud} msgs ({kb_total:.1f} KB) | "
+                f"Total Detections: {len(self.all_detections)}"
             )
 
     def handle_fog_stream(self, topic: str, payload_str: str, payload_dict: Dict[str, Any]):
@@ -106,11 +113,12 @@ class CloudProcessor:
             self.db.insert_detection(detection)
 
         kb_total = self.bytes_to_cloud / 1024.0
-        print(
-            f"[DISTRIBUTED CLOUD - FOG STREAM] Received ML payload from {fog_payload.fog_id}: "
-            f"⚡ {len(fog_payload.detections)} Isolation Forest detections | "
-            f"Total WAN: {self.messages_to_cloud} msgs ({kb_total:.1f} KB)"
-        )
+        if len(fog_payload.detections) > 0:
+            print(
+                f"[DISTRIBUTED CLOUD - FOG ALERT] ⚡ {fog_payload.fog_id}: "
+                f"Isolation Forest identified {len(fog_payload.detections)} contextual anomalies | "
+                f"Total WAN: {self.messages_to_cloud} msgs ({kb_total:.1f} KB)"
+            )
 
     def start_listening(self):
         """Subscribes to Edge and Fog processed topics."""
