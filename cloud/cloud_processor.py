@@ -47,6 +47,7 @@ class CloudProcessor:
         self.fog_detections_received = 0
         self.summaries_received = 0
         self.last_status_print = time.time()
+        self.last_alert_print = 0.0
         self.all_detections: List[AnomalyDetectionResult] = []
 
     def handle_edge_stream(self, topic: str, payload_str: str, payload_dict: Dict[str, Any]):
@@ -75,17 +76,18 @@ class CloudProcessor:
         num_aggs = len(edge_payload.aggregations)
         self.summaries_received += num_aggs
         kb_total = self.bytes_to_cloud / 1024.0
+        now = time.time()
 
-        # Print immediately on genuine anomaly alerts
-        if num_anom > 0:
+        # Throttled alert logging (at most 1 alert line per 2.0s to avoid terminal congestion)
+        if num_anom > 0 and (now - self.last_alert_print >= 2.0):
+            self.last_alert_print = now
             print(
-                f"[DISTRIBUTED CLOUD ALERT] 🚨 {edge_payload.edge_id} detected {num_anom} anomaly! "
-                f"Forwarded {len(edge_payload.individual_readings)} raw readings for forensic analysis | "
+                f"[DISTRIBUTED CLOUD ALERT] 🚨 {edge_payload.edge_id} detected anomaly! "
+                f"Ingested {len(edge_payload.individual_readings)} reading(s) | "
                 f"Total WAN: {self.messages_to_cloud} msgs ({kb_total:.1f} KB)"
             )
 
         # Print clean periodic heartbeat for normal aggregations (every 10s)
-        now = time.time()
         if now - self.last_status_print >= 10.0:
             self.last_status_print = now
             print(

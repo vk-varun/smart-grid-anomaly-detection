@@ -22,10 +22,12 @@ class CloudBaselineDetector:
 
         # Per-meter rolling buffers: meter_id -> deque([val1, val2, ...])
         self.history: Dict[str, deque] = {}
+        self.consecutive_anomalies: Dict[str, int] = {}
 
     def reset(self):
         """Clears detector state."""
         self.history.clear()
+        self.consecutive_anomalies.clear()
 
     def _update_and_calculate_zscore(self, meter_id: str, value: float) -> Tuple[float, float, float]:
         """Calculates z-score against historical baseline window and updates buffer."""
@@ -43,13 +45,20 @@ class CloudBaselineDetector:
         variance = sum((x - mean) ** 2 for x in buf) / (n - 1) if n > 1 else 0.0
         std = math.sqrt(variance)
 
-        # Minimum floor to prevent division by zero or extreme sensitivity on identical readings
-        effective_std = max(std, 0.03 * abs(mean), 0.01)
+        # Realistic electrical variance floor: 15% of mean or 0.12 kW minimum
+        effective_std = max(std, 0.15 * abs(mean), 0.12)
 
         z_score = abs(value - mean) / effective_std
 
-        # Only append normal readings to rolling window to avoid contaminating baseline
-        if z_score < self.zscore_threshold:
+        # Adapt to legitimate persistent load step shifts
+        if z_score >= self.zscore_threshold:
+            streak = self.consecutive_anomalies.get(meter_id, 0) + 1
+            self.consecutive_anomalies[meter_id] = streak
+            if streak >= 4:
+                buf.append(value)
+                self.consecutive_anomalies[meter_id] = 0
+        else:
+            self.consecutive_anomalies[meter_id] = 0
             buf.append(value)
 
         return z_score, mean, std

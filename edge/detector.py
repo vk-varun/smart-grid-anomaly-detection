@@ -22,10 +22,12 @@ class EdgeZScoreDetector:
 
         # Rolling history per meter: meter_id -> deque(maxlen=rolling_window_size)
         self.history: Dict[str, deque] = {}
+        self.consecutive_anomalies: Dict[str, int] = {}
 
     def reset(self):
         """Clears rolling buffers."""
         self.history.clear()
+        self.consecutive_anomalies.clear()
 
     def process(
         self,
@@ -55,8 +57,8 @@ class EdgeZScoreDetector:
         variance = sum((x - mean) ** 2 for x in buf) / (n - 1) if n > 1 else 0.0
         std = math.sqrt(variance)
 
-        # Minimum floor to prevent division by zero or extreme sensitivity on identical readings
-        effective_std = max(std, 0.03 * abs(mean), 0.01)
+        # Realistic electrical variance floor: 15% of mean or 0.12 kW minimum
+        effective_std = max(std, 0.15 * abs(mean), 0.12)
 
         z_score = abs(val - mean) / effective_std
 
@@ -75,8 +77,17 @@ class EdgeZScoreDetector:
             anomaly_type = "point"
             confidence = 0.95
 
-        # Only append normal readings to rolling window to avoid contaminating baseline
-        if not is_anomalous:
+        # Adapt to legitimate persistent load step shifts (e.g. appliance turned on)
+        if is_anomalous:
+            streak = self.consecutive_anomalies.get(meter_id, 0) + 1
+            self.consecutive_anomalies[meter_id] = streak
+            if streak >= 4:
+                # Persistent shift is a new normal operating baseline, not an eternal fault
+                buf.append(val)
+                self.consecutive_anomalies[meter_id] = 0
+                is_anomalous = False
+        else:
+            self.consecutive_anomalies[meter_id] = 0
             buf.append(val)
 
         if is_anomalous:
